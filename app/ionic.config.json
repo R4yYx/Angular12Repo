@@ -1,0 +1,7 @@
+{
+  "name": "TermineFortschreiben",
+  "integrations": {
+    "cordova": {}
+  },
+  "type": "angular"
+}

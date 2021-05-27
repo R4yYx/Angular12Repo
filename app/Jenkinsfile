@@ -1,0 +1,139 @@
+pipeline {
+    agent {
+        label 'master'
+    }
+
+    environment {
+        FILE_NAME = 'COS-MangelMelden'
+        SMB_DIR = 'OB_MANGel_melden'
+        EMAIL = 'WebTester@cosonline.de, cc:WebEntwickler@cosonline.de'
+        LANG = 'en_US.UTF-8'
+        TEAMS_WEBHOOK_URL = 'https://cosgmbh.webhook.office.com/webhookb2/dae540ae-d7ee-49d2-a74e-fdf405347edc@f87d8a6e-f9f9-43c0-9bfa-3fc84af2b470/IncomingWebhook/c09d637a87dd4da082f6062220a39256/1fcd8df0-b274-42ae-b419-cf8f447cfb4f'
+	}
+
+    triggers {
+        gitlab(triggerOnPush: true, triggerOnMergeRequest: false, branchFilterType: 'All')
+    }
+
+    stages {
+        stage('Build') {
+            parallel {
+                stage('Build - WebApp') {
+                    agent { label 'master' }
+                    environment {
+                        PATH = "/usr/local/bin/:$PATH"
+                    }
+                    steps {
+                        sh 'npx @cos/cos-mobile-cli@latest build -t web'
+                        stash includes: 'build/*.war', name: 'binary_war'
+                    }
+                    post {
+                        success {
+                            echo 'Deploy to Wildfly'
+                        }
+                    }
+                }
+                stage('Build - Android') {
+                    agent { label 'master' }
+                    steps {
+                        sh 'npx @cos/cos-mobile-cli@1.0.41 build -t android'
+                        stash includes: 'build/*.apk', name: 'binary_apk'
+                        stash includes: 'build/*.aab', name: 'binary_aab'
+                    }
+                }
+                stage('Build - iOS') {
+                    agent { label 'MacMini' }
+                    environment {
+                        PATH = "/usr/local/bin/:$PATH"
+                    }
+                    steps {
+                        sh 'npx @cos/cos-mobile-cli@latest build -t ios'
+                        stash includes: 'build/*.ipa', name: 'binary_ipa'
+                    }
+                }
+            }
+        }
+        stage('Publish') {
+            steps {
+                script {
+                    echo env.BRANCH_NAME
+
+                    unstash 'binary_war'
+                    unstash 'binary_apk'
+                    unstash 'binary_ipa'
+                    unstash 'binary_aab'
+
+                    def sourceFile = 'build/*.war , build/*.apk , build/*.aab , build/*.ipa, *.md'
+                    def baseDir = 'current'
+                    def featurename = ''
+                    def configName = 'Fileserver'
+
+                    if (env.BRANCH_NAME == 'develop') {
+
+                    } else if (env.BRANCH_NAME.contains('feature/')) {
+                        baseDir = 'feature'
+                        featurename = env.BRANCH_NAME.split('/')
+                        featurename = featurename[featurename.length - 1] + '/'
+                    } else if (env.BRANCH_NAME.contains('hotfix/') || env.BRANCH_NAME.contains('release/')) {
+                        baseDir = 'hotfix'
+                        configName = 'Fileserver-Test-Releases'
+                    } else if (env.BRANCH_NAME == 'master') {
+                        configName = 'Fileserver-Test-Releases'
+                    }
+
+                    cifsPublisher(
+                            publishers: [
+                                    [
+                                            configName             : configName,
+                                            transfers              : [
+                                                    [
+                                                            cleanRemote       : false,
+                                                            excludes          : '',
+                                                            flatten           : true,
+                                                            makeEmptyDirs     : false,
+                                                            noDefaultExcludes : false,
+                                                            patternSeparator  : '[, ]+',
+                                                            remoteDirectory   : baseDir + '/' + env.SMB_DIR + '/' + featurename,
+                                                            remoteDirectorySDF: false, removePrefix: '',
+                                                            sourceFiles       : sourceFile
+                                                    ]
+                                            ],
+                                            usePromotionTimestamp  : false,
+                                            useWorkspaceInPromotion: false,
+                                            verbose                : false
+                                    ]
+                            ]
+                    )
+                }
+            }
+        }
+  }
+
+    post {
+        changed {
+            echo "I'm different"
+        }
+        failure {
+            updateGitlabCommitStatus name: 'build', state: 'failed'
+        }
+        success {
+            updateGitlabCommitStatus name: 'build', state: 'success'
+            script {
+                if (env.BRANCH_NAME == 'master') {
+                    def version = sh(script: "node -p -e \"require('./package.json').version\"", returnStdout: true)
+                    def description = sh(script: "git fetch --tags && git tag -l -n99 --format=\"%(contents)\" " + version, returnStdout: true)
+
+                    def linkToWar = '\n\n\\\\fileserver\\Texte\\Mobile_Lösungen\\COSware%20Web%20Solutions\\Testversionen\\current\\' + env.SMB_DIR + ' \n\n\t- ' + env.FILE_NAME + '.apk\n\t- ' + env.FILE_NAME + '.ipa\n\t- ' + env.FILE_NAME + '.war'
+
+                    if(env.TEAMS_WEBHOOK_URL != null && env.TEAMS_WEBHOOK_URL != ""){
+                        sh(
+                                script: "npx @cos/cos-mobile-cli post-release-on-teams -a " + env.FILE_NAME + " -v '" + version + "' -p " + env.SMB_DIR + " -f " + env.FILE_NAME + " -u '" + env.TEAMS_WEBHOOK_URL + "' -d '"+ description + "'"
+                        )
+                    }
+
+                    emailext body: 'App: \t\t' + env.PROJECT_NAME + ' (Frontend)\nVersion: \t' + version + '\nBeschreibung: \n' + description + '\n\n\\\\fileserver\\Texte\\Mobile_Lösungen\\COSware%20Web%20Solutions\\Testversionen\\current\\' + env.SMB_DIR + ' \n\n\t- ' + env.PROJECT_NAME + '.apk\n\t- ' + env.PROJECT_NAME + '.ipa\n\t- ' + env.PROJECT_NAME + '.war', subject: '[JENKINS] [' + env.PROJECT_NAME + '] Neue Testversion: ' + version, to: env.EMAIL
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "824182806021",
+    "project_id": "mangelmelden",
+    "storage_bucket": "mangelmelden.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:824182806021:android:0b151d016db524f7a16e6c",
+        "android_client_info": {
+          "package_name": "de.cosonline.web.COSMangelMelden"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "824182806021-cg6aqid2s6nj14pvmidk4m23d3p52s45.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBsNnDpAq7O5i231dAvpptWABa7crTSK_M"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "824182806021-cg6aqid2s6nj14pvmidk4m23d3p52s45.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "824182806021-d0bih4r6uie5kg1ml4heqoetmvm0dlpk.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "de.cosonline.web.COSMangelMelden"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
