@@ -1,12 +1,10 @@
 import {NgModule} from '@angular/core';
 import {PreloadAllModules, RouterModule, Routes} from '@angular/router';
-import {AuthGuardService} from '@cos/common';
 
 const routes: Routes = [
     {
         path: 'home',
-        loadChildren: () => import('./page/lazy-home.module').then(m => m.LazyHomeModule),
-        canActivate: [AuthGuardService]
+        loadChildren: () => import('./page/home/home.module').then(m => m.HomeModule),
     },
     {
         path: '',
